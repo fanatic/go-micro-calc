@@ -80,7 +80,7 @@ func router() http.Handler {
 
 		answer := payload["b"]
 		for i := 1; i < int(payload["a"]); i++ {
-			answer, err = doPlus(answer, payload["b"])
+			answer, err = doPlus(answer, payload["b"], getHdrs(&r.Header))
 			if err != nil {
 				fmt.Printf("mul at=error %s\n", err.Error())
 				http.Error(w, err.Error(), http.StatusBadRequest)
@@ -119,13 +119,21 @@ func parsePayload(body io.ReadCloser) (map[string]float64, error) {
 	return payload, nil
 }
 
-func doPlus(a, b float64) (float64, error) {
+func doPlus(a, b float64, traceHdrs map[string]string) (float64, error) {
 	payload, err := json.Marshal(map[string]float64{"a": a, "b": b})
 	if err != nil {
 		return 0, err
 	}
 
-	resp, err := http.Post(os.Getenv("PLUS_SVC_URL"), "application/json", bytes.NewReader(payload))
+	req, err := http.NewRequest("POST", os.Getenv("PLUS_SVC_URL"), bytes.NewReader(payload))
+	if err != nil {
+		return 0, err
+	}
+	req.Header.Add("Content-Type", "application/json")
+	for k, v := range traceHdrs {
+		req.Header.Set(k, v)
+	}
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return 0, err
 	}
@@ -135,4 +143,13 @@ func doPlus(a, b float64) (float64, error) {
 	resp.Body.Close()
 
 	return result["answer"], nil
+}
+
+func getHdrs(hdrs *http.Header) map[string]string {
+	r := map[string]string{}
+	s := []string{"x-request-id", "x-ot-span-context", "x-b3-traceid", "x-b3-spanid", "x-b3-parentspanid", "x-b3-sampled", "x-b3-flags"}
+	for _, ss := range s {
+		r[ss] = hdrs.Get(ss)
+	}
+	return r
 }

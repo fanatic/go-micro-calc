@@ -1,0 +1,102 @@
+{
+    "listeners": [{
+        "address": "tcp://0.0.0.0:3000",
+        "filters": [{
+            "type": "read",
+            "name": "http_connection_manager",
+            "config": {
+                "codec_type": "auto",
+                "stat_prefix": "ingress_http",
+                "route_config": {
+                    "virtual_hosts": [{
+                        "name": "local_service",
+                        "domains": [ "*" ],
+                        "routes": [{
+                            "timeout_ms": 0,
+                            "prefix": "/",
+                            "cluster": "local_service"
+                        }]
+                    }]
+                },
+                "filters": [{
+                    "type": "decoder",
+                    "name": "router",
+                    "config": {}
+                }],
+		"tracing": { "operation_name": "ingress" },
+    		"access_log": [{"path": "/dev/stdout"}]
+            }
+	}]
+    },{
+        "address": "tcp://127.0.0.1:3001",
+        "filters": [{
+            "type": "read",
+            "name": "http_connection_manager",
+            "config": {
+                "codec_type": "auto",
+                "stat_prefix": "egress_http",
+		"tracing": {"operation_name": "egress"},
+		"add_user_agent": true,
+		"idle_timeout_s": 840,
+		"use_remote_address": true,
+                "route_config": {
+                    "virtual_hosts": [{
+                        "name": "plus_svc",
+                        "domains": [ "*" ],
+                        "routes": [{
+                            "prefix": "/",
+			    "cluster": "egress_plus"
+                        }]
+                    }]
+                },
+                "filters": [{
+                    "type": "decoder",
+                    "name": "router",
+                    "config": {}
+                }],
+    		"access_log": [{"path": "/dev/stdout"}]
+            }
+        }]
+    }],
+    "admin": {
+        "access_log_path": "/tmp/admin_access.log",
+        "address": "tcp://127.0.0.1:3002"
+    },
+    "cluster_manager": {
+        "clusters": [{
+            "name": "local_service",
+            "connect_timeout_ms": 250,
+            "type": "static",
+            "lb_type": "round_robin",
+            "hosts": [{
+                "url": "tcp://127.0.0.1:3003"
+            }]
+        },{
+            "name": "egress_plus",
+            "connect_timeout_ms": 250,
+            "type": "static",
+            "lb_type": "round_robin",
+            "hosts": [{
+                "url": "tcp://127.0.0.1:3000"
+            }]
+        },{
+            "name": "zipkin_cluster",
+            "connect_timeout_ms": 250,
+            "type": "static",
+            "lb_type": "round_robin",
+            "hosts": [{
+                "url": "tcp://192.168.3.38:9411"
+            }]
+	}]
+    },
+    "tracing": {
+        "http": {
+	    "driver": {
+	        "type": "zipkin",
+	        "config": {
+		    "collector_cluster": "zipkin_cluster"
+	        }
+	    }
+        }
+    }
+}
