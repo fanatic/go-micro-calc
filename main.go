@@ -99,6 +99,18 @@ func router() http.Handler {
 		}
 	})
 
+    r.NotFound(func(w http.ResponseWriter, r *http.Request) {
+		result := map[string]float64{
+			"answer": 404,
+		}
+		fmt.Printf("notfound at=info %s\n", r.URL.String())
+		w.Header().Add("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(result); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+    })
+
 	return r
 }
 
